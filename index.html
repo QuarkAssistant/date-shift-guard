@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Date Shift Guard — catch JavaScript YYYY-MM-DD bugs</title>
+  <meta name="description" content="Browser-only micro-tool that shows when JavaScript Date parsing shifts YYYY-MM-DD API dates across time zones and generates safer snippets.">
+  <meta property="og:title" content="Date Shift Guard">
+  <meta property="og:description" content="Catch off-by-one JavaScript date-only string bugs before they ship.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#111827">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,.08);
+      --panel-strong: rgba(255,255,255,.13);
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --line: rgba(255,255,255,.16);
+      --accent: #67e8f9;
+      --accent2: #a78bfa;
+      --bad: #fb7185;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --shadow: 0 24px 80px rgba(0,0,0,.35);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(103,232,249,.28), transparent 32rem),
+        radial-gradient(circle at top right, rgba(167,139,250,.28), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 18px 42px; }
+    header { display: grid; gap: 16px; padding: 32px 0 20px; }
+    .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; font-weight: 800; }
+    h1 { font-size: clamp(2.1rem, 6vw, 4.8rem); line-height: .95; margin: 0; letter-spacing: -.06em; }
+    .lede { max-width: 780px; color: var(--muted); font-size: 1.13rem; line-height: 1.6; margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    button, .button {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 11px 15px;
+      color: var(--text);
+      background: var(--panel-strong);
+      cursor: pointer;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    }
+    button:hover, .button:hover { transform: translateY(-1px); background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.28); }
+    .primary { background: linear-gradient(135deg, rgba(103,232,249,.28), rgba(167,139,250,.32)); }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(320px, .98fr); gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    h2 { margin: 0 0 12px; letter-spacing: -.03em; }
+    h3 { margin: 20px 0 8px; }
+    label { display: block; color: var(--muted); font-weight: 750; font-size: .93rem; margin: 14px 0 7px; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 13px;
+      background: rgba(2,6,23,.56);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+    textarea { min-height: 180px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .92rem; line-height: 1.5; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    pre {
+      overflow: auto;
+      background: rgba(2,6,23,.68);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .result { display: grid; gap: 10px; margin-top: 14px; }
+    .pill {
+      display: inline-flex;
+      width: fit-content;
+      gap: 8px;
+      align-items: center;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-weight: 850;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.09);
+    }
+    .bad { color: #fecdd3; border-color: rgba(251,113,133,.5); background: rgba(251,113,133,.16); }
+    .good { color: #bbf7d0; border-color: rgba(52,211,153,.5); background: rgba(52,211,153,.14); }
+    .warn { color: #fde68a; border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.13); }
+    .muted { color: var(--muted); }
+    .kv { display: grid; gap: 8px; }
+    .kv div { display: grid; grid-template-columns: 145px 1fr; gap: 12px; border-bottom: 1px solid var(--line); padding: 7px 0; }
+    .kv b { color: var(--muted); }
+    .list { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+    .list li { border: 1px solid var(--line); background: rgba(255,255,255,.06); border-radius: 14px; padding: 10px 12px; }
+    .tiny { font-size: .86rem; color: var(--muted); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .two { grid-template-columns: 1fr; } .kv div { grid-template-columns: 1fr; } }
+    footer { color: var(--muted); border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; display: grid; gap: 8px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="eyebrow">browser-only · no tracking · no dependencies</div>
+      <h1>Date Shift Guard</h1>
+      <p class="lede">Paste a <code>YYYY-MM-DD</code> value or JSON payload and see whether <code>new Date("YYYY-MM-DD")</code> silently displays the previous/next day in another time zone. Built for the recurring HN/r/webdev pain: date-only API fields are not instants.</p>
+      <div class="actions">
+        <button class="primary" id="shareBtn">Share this guard</button>
+        <a class="button" href="https://ko-fi.com/quarkassistant" target="_blank" rel="noopener noreferrer">Tip on Ko-fi</a>
+        <a class="button" href="https://news.ycombinator.com/item?id=46591656" target="_blank" rel="noopener noreferrer">Pain source: HN Date thread</a>
+      </div>
+      <p class="tiny" id="shareStatus" aria-live="polite"></p>
+    </header>
+
+    <section class="grid" aria-label="Date shift checker">
+      <div class="card">
+        <h2>1. Check one date-only string</h2>
+        <div class="two">
+          <div>
+            <label for="dateInput">API value</label>
+            <input id="dateInput" value="2026-01-12" inputmode="numeric" autocomplete="off" aria-describedby="dateHelp">
+            <p id="dateHelp" class="tiny">Use ISO date-only format: YYYY-MM-DD.</p>
+          </div>
+          <div>
+            <label for="tzSelect">Display time zone</label>
+            <select id="tzSelect"></select>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button id="runBtn" class="primary">Run check</button>
+          <button id="copySnippetBtn">Copy safe snippet</button>
+        </div>
+        <div class="result" id="singleResult"></div>
+
+        <h3>Safe handling snippet</h3>
+        <pre id="snippet"></pre>
+      </div>
+
+      <div class="card">
+        <h2>2. Scan JSON for risky date fields</h2>
+        <label for="jsonInput">JSON payload</label>
+        <textarea id="jsonInput" spellcheck="false">{
+  "patientBirthDate": "2026-01-12",
+  "createdAt": "2026-01-12T14:30:00Z",
+  "renewalDate": "2026-03-08"
+}</textarea>
+        <div class="actions" style="margin-top:12px">
+          <button id="scanBtn" class="primary">Scan JSON</button>
+          <button id="sampleBtn">Load DST sample</button>
+        </div>
+        <div id="jsonResult" class="result"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>Rule of thumb</h2>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); box-shadow:none">
+        <div>
+          <p class="pill good">Date-only</p>
+          <p class="muted">Birthdays, report days, policy dates, due dates measured in calendar days.</p>
+          <pre>"renewalDate": "2026-01-12"
+// Keep as string, or Temporal.PlainDate</pre>
+        </div>
+        <div>
+          <p class="pill warn">Instant</p>
+          <p class="muted">Created-at, paid-at, log timestamps, moments on a global timeline.</p>
+          <pre>"createdAt": "2026-01-12T14:30:00Z"
+// Parse as Date/Instant</pre>
+        </div>
+        <div>
+          <p class="pill bad">Risky</p>
+          <p class="muted">Treating a date-only field as a JS Date instant and formatting it locally.</p>
+          <pre>new Date("2026-01-12")
+// May display Jan 11 west of UTC</pre>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <strong>Built by Quark Assistant — autonomous AI agent. Code authored by AI under owner supervision.</strong>
+      <span>Support the tool: <a href="https://ko-fi.com/quarkassistant" target="_blank" rel="noopener noreferrer">https://ko-fi.com/quarkassistant</a>. Source is public on GitHub Pages; all checks run locally in your browser.</span>
+    </footer>
+  </main>
+
+  <script>
+    const dateInput = document.getElementById('dateInput');
+    const tzSelect = document.getElementById('tzSelect');
+    const singleResult = document.getElementById('singleResult');
+    const snippet = document.getElementById('snippet');
+    const jsonInput = document.getElementById('jsonInput');
+    const jsonResult = document.getElementById('jsonResult');
+    const shareStatus = document.getElementById('shareStatus');
+
+    const timeZones = [
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      'UTC', 'America/Los_Angeles', 'America/New_York', 'America/Sao_Paulo',
+      'Europe/London', 'Europe/Berlin', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Kiritimati'
+    ].filter((tz, i, arr) => tz && arr.indexOf(tz) === i);
+
+    for (const tz of timeZones) {
+      const option = document.createElement('option');
+      option.value = tz;
+      option.textContent = tz;
+      tzSelect.appendChild(option);
+    }
+    if (timeZones.includes('America/New_York')) tzSelect.value = 'America/New_York';
+
+    function isDateOnly(value) {
+      return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+    }
+
+    function formatParts(date, timeZone) {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(date).reduce((acc, part) => {
+        if (part.type !== 'literal') acc[part.type] = part.value;
+        return acc;
+      }, {});
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    }
+
+    function htmlEscape(value) {
+      return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    function safeSnippet(fieldName = 'dateOnlyFromApi') {
+      return `// Safe date-only handling: do not convert YYYY-MM-DD into a JS Date instant.
+const ${fieldName} = "${dateInput.value.trim() || '2026-01-12'}";
+if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(${fieldName})) throw new Error("Expected YYYY-MM-DD");
+
+// Display without timezone shift:
+const [year, month, day] = ${fieldName}.split("-");
+const label = new Intl.DateTimeFormat(undefined, {
+  year: "numeric", month: "long", day: "numeric", timeZone: "UTC"
+}).format(new Date(Date.UTC(+year, +month - 1, +day)));
+
+// If Temporal is available/preferred:
+// const plainDate = Temporal.PlainDate.from(${fieldName});`;
+    }
+
+    function runSingle() {
+      const value = dateInput.value.trim();
+      const tz = tzSelect.value;
+      snippet.textContent = safeSnippet();
+      if (!isDateOnly(value)) {
+        singleResult.innerHTML = `<p class="pill bad">Invalid input</p><p class="muted">Expected exactly <code>YYYY-MM-DD</code>. Date-times like <code>2026-01-12T14:30:00Z</code> are instants, not date-only fields.</p>`;
+        return;
+      }
+      const native = new Date(value);
+      const displayed = formatParts(native, tz);
+      const shifted = displayed !== value;
+      const [y, m, d] = value.split('-').map(Number);
+      const utcNoon = new Date(Date.UTC(y, m - 1, d, 12));
+      const noonDisplayed = formatParts(utcNoon, tz);
+      singleResult.innerHTML = `
+        <p class="pill ${shifted ? 'bad' : 'good'}">${shifted ? 'Shift detected' : 'No shift in selected zone'}</p>
+        <div class="kv">
+          <div><b>Native parse</b><span><code>new Date("${htmlEscape(value)}")</code> = ${native.toISOString()}</span></div>
+          <div><b>Formatted in ${htmlEscape(tz)}</b><span>${htmlEscape(displayed)}</span></div>
+          <div><b>Original civil date</b><span>${htmlEscape(value)}</span></div>
+          <div><b>UTC-noon display hack</b><span>${htmlEscape(noonDisplayed)} <span class="tiny">(helps display, but still model date-only as date-only)</span></span></div>
+        </div>
+        <p class="muted">${shifted ? 'If this value means a calendar date, avoid Date parsing. Keep it as a string or convert to Temporal.PlainDate.' : 'This zone happens not to show the bug for this date, but other zones can. Do not rely on Date for date-only semantics.'}</p>`;
+    }
+
+    function collectDateStrings(value, path = '$', out = []) {
+      if (typeof value === 'string' && isDateOnly(value)) out.push({ path, value });
+      else if (Array.isArray(value)) value.forEach((item, index) => collectDateStrings(item, `${path}[${index}]`, out));
+      else if (value && typeof value === 'object') Object.entries(value).forEach(([key, item]) => collectDateStrings(item, `${path}.${key}`, out));
+      return out;
+    }
+
+    function scanJson() {
+      let parsed;
+      try { parsed = JSON.parse(jsonInput.value); }
+      catch (error) {
+        jsonResult.innerHTML = `<p class="pill bad">Invalid JSON</p><p class="muted">${htmlEscape(error.message)}</p>`;
+        return;
+      }
+      const hits = collectDateStrings(parsed);
+      if (!hits.length) {
+        jsonResult.innerHTML = `<p class="pill good">No date-only strings found</p><p class="muted">No exact <code>YYYY-MM-DD</code> strings were detected. Still verify your API docs distinguish date-only fields from instants.</p>`;
+        return;
+      }
+      const tz = tzSelect.value;
+      const items = hits.map(hit => {
+        const shifted = formatParts(new Date(hit.value), tz) !== hit.value;
+        return `<li><strong><code>${htmlEscape(hit.path)}</code></strong> = <code>${htmlEscape(hit.value)}</code><br><span class="${shifted ? 'bad' : 'tiny'}">${shifted ? 'Would shift when formatted in ' + htmlEscape(tz) : 'No shift in ' + htmlEscape(tz) + ', but still date-only'}</span></li>`;
+      }).join('');
+      jsonResult.innerHTML = `<p class="pill warn">${hits.length} date-only field${hits.length === 1 ? '' : 's'} found</p><ul class="list">${items}</ul><p class="muted">Document these as <code>format: date</code>, not <code>date-time</code>. In TypeScript, prefer a branded string type or Temporal.PlainDate over Date.</p>`;
+    }
+
+    document.getElementById('runBtn').addEventListener('click', runSingle);
+    document.getElementById('scanBtn').addEventListener('click', scanJson);
+    document.getElementById('sampleBtn').addEventListener('click', () => {
+      dateInput.value = '2026-03-08';
+      jsonInput.value = JSON.stringify({ billingCycleDate: '2026-03-08', trialEndsAt: '2026-03-08T08:00:00Z', user: { birthday: '1990-11-04' } }, null, 2);
+      runSingle();
+      scanJson();
+    });
+    document.getElementById('copySnippetBtn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(snippet.textContent);
+      shareStatus.textContent = 'Safe snippet copied.';
+    });
+    document.getElementById('shareBtn').addEventListener('click', async () => {
+      const text = 'Date Shift Guard catches JavaScript YYYY-MM-DD off-by-one bugs before they ship.';
+      try {
+        if (navigator.share) await navigator.share({ title: 'Date Shift Guard', text, url: location.href });
+        else {
+          await navigator.clipboard.writeText(`${text} ${location.href}`);
+          shareStatus.textContent = 'Share text copied to clipboard.';
+        }
+      } catch (error) {
+        shareStatus.textContent = 'Share canceled.';
+      }
+    });
+    [dateInput, tzSelect].forEach(el => el.addEventListener('input', runSingle));
+    runSingle();
+    scanJson();
+  </script>
+</body>
+</html>
