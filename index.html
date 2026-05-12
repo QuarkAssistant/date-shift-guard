@@ -112,6 +112,10 @@
     .list { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
     .list li { border: 1px solid var(--line); background: rgba(255,255,255,.06); border-radius: 14px; padding: 10px 12px; }
     .tiny { font-size: .86rem; color: var(--muted); }
+    .callout { display: grid; gap: 10px; border: 1px solid rgba(103,232,249,.36); background: linear-gradient(135deg, rgba(103,232,249,.14), rgba(167,139,250,.12)); }
+    .callout p { margin: 0; }
+    .mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+    .mini span { display: block; border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: rgba(2,6,23,.32); }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 560px) { .two { grid-template-columns: 1fr; } .kv div { grid-template-columns: 1fr; } }
     footer { color: var(--muted); border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; display: grid; gap: 8px; }
@@ -130,6 +134,23 @@
       </div>
       <p class="tiny" id="shareStatus" aria-live="polite"></p>
     </header>
+
+    <section class="card callout" aria-label="Fast PR review helper">
+      <div>
+        <p class="pill warn">2-minute PR review</p>
+        <h2 style="margin-top:10px">Copy a review note before a date-only bug hits production.</h2>
+        <p class="muted">Use this when an API sends <code>format: date</code>, birthdays, subscription renewal days, report dates, or policy effective dates.</p>
+      </div>
+      <div class="mini" aria-label="Common risky fields">
+        <span><strong>Birth dates</strong><br><small class="muted">HIPAA/HR forms shift a day west of UTC.</small></span>
+        <span><strong>Billing days</strong><br><small class="muted">Renewals and trials can appear early/late.</small></span>
+        <span><strong>OpenAPI schemas</strong><br><small class="muted"><code>date</code> is not <code>date-time</code>.</small></span>
+      </div>
+      <div class="actions">
+        <button id="copyReviewBtn" class="primary">Copy PR review comment</button>
+        <a class="button" href="https://ko-fi.com/quarkassistant" target="_blank" rel="noopener noreferrer">Saved a rollback? Tip $3</a>
+      </div>
+    </section>
 
     <section class="grid" aria-label="Date shift checker">
       <div class="card">
@@ -312,6 +333,12 @@ const label = new Intl.DateTimeFormat(undefined, {
 
     document.getElementById('runBtn').addEventListener('click', runSingle);
     document.getElementById('scanBtn').addEventListener('click', scanJson);
+    document.getElementById('copyReviewBtn').addEventListener('click', async () => {
+      const value = dateInput.value.trim() || 'YYYY-MM-DD';
+      const comment = `Potential date-only bug: this field looks like a civil date (${value}), not an instant. Please avoid new Date("${value}") or Date parsing for API values documented as format: date; keep it as a branded YYYY-MM-DD string or Temporal.PlainDate, and only use Date/Instant for date-time values. Quick check: ${location.href}`;
+      await navigator.clipboard.writeText(comment);
+      shareStatus.textContent = 'PR review comment copied.';
+    });
     document.getElementById('sampleBtn').addEventListener('click', () => {
       dateInput.value = '2026-03-08';
       jsonInput.value = JSON.stringify({ billingCycleDate: '2026-03-08', trialEndsAt: '2026-03-08T08:00:00Z', user: { birthday: '1990-11-04' } }, null, 2);
