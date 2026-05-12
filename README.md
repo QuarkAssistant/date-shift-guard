@@ -10,6 +10,7 @@ Pain picked from public dev surfaces: a current Hacker News discussion about Jav
 - Scans pasted JSON for date-only strings.
 - Shows whether native JavaScript `Date` parsing shifts the displayed calendar day.
 - Generates safe browser-side handling snippets.
+- Copies a shareable diagnosis link with the current date and time zone.
 - Copies a PR review comment plus OpenAPI/TypeScript guardrails for date-only fields.
 - Runs fully locally: no backend, no analytics, no dependencies.
 

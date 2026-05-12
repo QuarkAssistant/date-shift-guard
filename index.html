@@ -176,6 +176,7 @@
         <div class="actions" style="margin-top:12px">
           <button id="runBtn" class="primary">Run check</button>
           <button id="copySnippetBtn">Copy safe snippet</button>
+          <button id="copyLinkBtn">Copy diagnosis link</button>
         </div>
         <div class="result" id="singleResult"></div>
 
@@ -257,6 +258,18 @@
       tzSelect.appendChild(option);
     }
     if (timeZones.includes('America/New_York')) tzSelect.value = 'America/New_York';
+
+    const sharedParams = new URLSearchParams(window.location.search);
+    if (isDateOnly(sharedParams.get('d'))) dateInput.value = sharedParams.get('d');
+    if (timeZones.includes(sharedParams.get('tz'))) tzSelect.value = sharedParams.get('tz');
+
+    function currentDiagnosticUrl() {
+      const url = new URL(productUrl);
+      const value = dateInput.value.trim();
+      if (isDateOnly(value)) url.searchParams.set('d', value);
+      if (tzSelect.value) url.searchParams.set('tz', tzSelect.value);
+      return url.toString();
+    }
 
     function isDateOnly(value) {
       return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
@@ -364,7 +377,8 @@ Support: ${kofiUrl}`;
           <div><b>Original civil date</b><span>${htmlEscape(value)}</span></div>
           <div><b>UTC-noon display hack</b><span>${htmlEscape(noonDisplayed)} <span class="tiny">(helps display, but still model date-only as date-only)</span></span></div>
         </div>
-        <p class="muted">${shifted ? 'If this value means a calendar date, avoid Date parsing. Keep it as a string or convert to Temporal.PlainDate.' : 'This zone happens not to show the bug for this date, but other zones can. Do not rely on Date for date-only semantics.'}</p>`;
+        <p class="muted">${shifted ? 'If this value means a calendar date, avoid Date parsing. Keep it as a string or convert to Temporal.PlainDate.' : 'This zone happens not to show the bug for this date, but other zones can. Do not rely on Date for date-only semantics.'}</p>
+        <p class="muted">Useful in review? Copy the diagnosis link for the ticket. If it saved a rollback, <a href="${kofiUrl}" target="_blank" rel="noopener noreferrer">tip $3 on Ko-fi</a>.</p>`;
     }
 
     function collectDateStrings(value, path = '$', out = []) {
@@ -391,7 +405,7 @@ Support: ${kofiUrl}`;
         const shifted = formatParts(new Date(hit.value), tz) !== hit.value;
         return `<li><strong><code>${htmlEscape(hit.path)}</code></strong> = <code>${htmlEscape(hit.value)}</code><br><span class="${shifted ? 'bad' : 'tiny'}">${shifted ? 'Would shift when formatted in ' + htmlEscape(tz) : 'No shift in ' + htmlEscape(tz) + ', but still date-only'}</span></li>`;
       }).join('');
-      jsonResult.innerHTML = `<p class="pill warn">${hits.length} date-only field${hits.length === 1 ? '' : 's'} found</p><ul class="list">${items}</ul><p class="muted">Document these as <code>format: date</code>, not <code>date-time</code>. In TypeScript, prefer a branded string type or Temporal.PlainDate over Date.</p>`;
+      jsonResult.innerHTML = `<p class="pill warn">${hits.length} date-only field${hits.length === 1 ? '' : 's'} found</p><ul class="list">${items}</ul><p class="muted">Document these as <code>format: date</code>, not <code>date-time</code>. In TypeScript, prefer a branded string type or Temporal.PlainDate over Date.</p><p class="muted">Paste the diagnosis link into the issue. If this checklist prevented a production bug, <a href="${kofiUrl}" target="_blank" rel="noopener noreferrer">support Date Shift Guard on Ko-fi</a>.</p>`;
     }
 
     document.getElementById('runBtn').addEventListener('click', runSingle);
@@ -414,10 +428,13 @@ Support: ${kofiUrl}`;
     document.getElementById('copySnippetBtn').addEventListener('click', async () => {
       await copyText(snippet.textContent, 'Safe snippet copied.');
     });
+    document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+      await copyText(currentDiagnosticUrl(), 'Diagnosis link copied with current date and time zone.');
+    });
     document.getElementById('shareBtn').addEventListener('click', async () => {
       try {
         if (navigator.share) {
-          await navigator.share({ title: 'Date Shift Guard', text: 'Catch JavaScript YYYY-MM-DD off-by-one bugs before they ship.', url: productUrl });
+          await navigator.share({ title: 'Date Shift Guard', text: 'Catch JavaScript YYYY-MM-DD off-by-one bugs before they ship.', url: currentDiagnosticUrl() });
           shareStatus.textContent = 'Shared. Thanks for sending it to someone debugging dates.';
         }
         else {

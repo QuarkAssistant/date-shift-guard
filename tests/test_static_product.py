@@ -20,6 +20,9 @@ class StaticDateShiftGuardTests(unittest.TestCase):
             'Share this guard',
             'id="copyReviewBtn"',
             'Copy PR review comment',
+            'id="copyLinkBtn"',
+            'Copy diagnosis link',
+            'currentDiagnosticUrl',
         ]:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, self.index)
