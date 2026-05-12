@@ -5,9 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Date Shift Guard — catch JavaScript YYYY-MM-DD bugs</title>
   <meta name="description" content="Browser-only micro-tool that shows when JavaScript Date parsing shifts YYYY-MM-DD API dates across time zones and generates safer snippets.">
+  <link rel="canonical" href="https://quarkassistant.github.io/date-shift-guard/">
   <meta property="og:title" content="Date Shift Guard">
   <meta property="og:description" content="Catch off-by-one JavaScript date-only string bugs before they ship.">
+  <meta property="og:url" content="https://quarkassistant.github.io/date-shift-guard/">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Date Shift Guard">
+  <meta name="twitter:description" content="Browser-only JavaScript date-only bug checker with copyable PR, OpenAPI, and TypeScript guardrails.">
   <meta name="theme-color" content="#111827">
   <style>
     :root {
@@ -148,8 +153,10 @@
       </div>
       <div class="actions">
         <button id="copyReviewBtn" class="primary">Copy PR review comment</button>
+        <button id="copyGuardrailBtn">Copy OpenAPI + TypeScript guardrail</button>
         <a class="button" href="https://ko-fi.com/quarkassistant" target="_blank" rel="noopener noreferrer">Saved a rollback? Tip $3</a>
       </div>
+      <pre id="guardrailPack" aria-label="OpenAPI and TypeScript guardrail snippet"></pre>
     </section>
 
     <section class="grid" aria-label="Date shift checker">
@@ -230,6 +237,12 @@
     const jsonInput = document.getElementById('jsonInput');
     const jsonResult = document.getElementById('jsonResult');
     const shareStatus = document.getElementById('shareStatus');
+    const guardrailPack = document.getElementById('guardrailPack');
+
+    const productUrl = 'https://quarkassistant.github.io/date-shift-guard/';
+    const kofiUrl = 'https://ko-fi.com/quarkassistant';
+    const disclosureFooter = 'Built by Quark Assistant — autonomous AI agent. Code authored by AI under owner supervision.';
+    const shareText = `Date Shift Guard catches JavaScript YYYY-MM-DD off-by-one bugs before they ship. Browser-only, no tracking. ${productUrl}\n\n${disclosureFooter}`;
 
     const timeZones = [
       Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -279,10 +292,60 @@ const label = new Intl.DateTimeFormat(undefined, {
 // const plainDate = Temporal.PlainDate.from(${fieldName});`;
     }
 
+    function guardrailSnippet(fieldName = 'renewalDate') {
+      const current = dateInput.value.trim();
+      const sample = isDateOnly(current) ? current : '2026-01-12';
+      return `# OpenAPI: date-only field, not an instant
+${fieldName}:
+  type: string
+  format: date
+  example: "${sample}"
+  description: Calendar date. Do not parse as JavaScript Date/date-time.
+
+// TypeScript guardrail: make accidental Date parsing visible in review.
+type DateOnlyString = string & { readonly __dateOnly: unique symbol };
+function asDateOnly(value: string): DateOnlyString {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) throw new Error('Expected YYYY-MM-DD');
+  return value as DateOnlyString;
+}
+const ${fieldName}: DateOnlyString = asDateOnly('${sample}');
+
+// PR check: if the value is format: date, do not call new Date(${fieldName}).
+// Use Temporal.PlainDate when available, or keep the branded string at boundaries.
+
+${disclosureFooter}
+Support: ${kofiUrl}`;
+    }
+
+    async function copyText(text, successMessage, fallbackMessage = 'Copy failed. Select the text manually.') {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          const copied = document.execCommand('copy');
+          ta.remove();
+          if (!copied) throw new Error('execCommand copy failed');
+        }
+        shareStatus.textContent = successMessage;
+        return true;
+      } catch (error) {
+        shareStatus.textContent = fallbackMessage;
+        return false;
+      }
+    }
+
     function runSingle() {
       const value = dateInput.value.trim();
       const tz = tzSelect.value;
       snippet.textContent = safeSnippet();
+      guardrailPack.textContent = guardrailSnippet();
       if (!isDateOnly(value)) {
         singleResult.innerHTML = `<p class="pill bad">Invalid input</p><p class="muted">Expected exactly <code>YYYY-MM-DD</code>. Date-times like <code>2026-01-12T14:30:00Z</code> are instants, not date-only fields.</p>`;
         return;
@@ -335,9 +398,12 @@ const label = new Intl.DateTimeFormat(undefined, {
     document.getElementById('scanBtn').addEventListener('click', scanJson);
     document.getElementById('copyReviewBtn').addEventListener('click', async () => {
       const value = dateInput.value.trim() || 'YYYY-MM-DD';
-      const comment = `Potential date-only bug: this field looks like a civil date (${value}), not an instant. Please avoid new Date("${value}") or Date parsing for API values documented as format: date; keep it as a branded YYYY-MM-DD string or Temporal.PlainDate, and only use Date/Instant for date-time values. Quick check: ${location.href}`;
-      await navigator.clipboard.writeText(comment);
-      shareStatus.textContent = 'PR review comment copied.';
+      const comment = `Potential date-only bug: this field looks like a civil date (${value}), not an instant. Please avoid new Date("${value}") or Date parsing for API values documented as format: date; keep it as a branded YYYY-MM-DD string or Temporal.PlainDate, and only use Date/Instant for date-time values. Quick check: ${productUrl}\n\n${disclosureFooter}`;
+      await copyText(comment, 'PR review comment copied.', 'Copy failed. The review note is visible in the guardrail pack below.');
+    });
+    document.getElementById('copyGuardrailBtn').addEventListener('click', async () => {
+      guardrailPack.textContent = guardrailSnippet();
+      await copyText(guardrailPack.textContent, 'OpenAPI + TypeScript guardrail copied.');
     });
     document.getElementById('sampleBtn').addEventListener('click', () => {
       dateInput.value = '2026-03-08';
@@ -346,19 +412,20 @@ const label = new Intl.DateTimeFormat(undefined, {
       scanJson();
     });
     document.getElementById('copySnippetBtn').addEventListener('click', async () => {
-      await navigator.clipboard.writeText(snippet.textContent);
-      shareStatus.textContent = 'Safe snippet copied.';
+      await copyText(snippet.textContent, 'Safe snippet copied.');
     });
     document.getElementById('shareBtn').addEventListener('click', async () => {
-      const text = 'Date Shift Guard catches JavaScript YYYY-MM-DD off-by-one bugs before they ship.';
       try {
-        if (navigator.share) await navigator.share({ title: 'Date Shift Guard', text, url: location.href });
+        if (navigator.share) {
+          await navigator.share({ title: 'Date Shift Guard', text: 'Catch JavaScript YYYY-MM-DD off-by-one bugs before they ship.', url: productUrl });
+          shareStatus.textContent = 'Shared. Thanks for sending it to someone debugging dates.';
+        }
         else {
-          await navigator.clipboard.writeText(`${text} ${location.href}`);
-          shareStatus.textContent = 'Share text copied to clipboard.';
+          await copyText(shareText, 'Share text copied to clipboard.');
         }
       } catch (error) {
-        shareStatus.textContent = 'Share canceled.';
+        if (error && error.name === 'AbortError') shareStatus.textContent = 'Share canceled.';
+        else await copyText(shareText, 'Native share failed; copied share text instead.');
       }
     });
     [dateInput, tzSelect].forEach(el => el.addEventListener('input', runSingle));
