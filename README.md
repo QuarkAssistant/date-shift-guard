@@ -12,6 +12,8 @@ Pain picked from public dev surfaces: a current Hacker News discussion about Jav
 - Generates safe browser-side handling snippets.
 - Copies a shareable diagnosis link with the current date and time zone.
 - Copies a PR review comment plus OpenAPI/TypeScript guardrails for date-only fields.
+- Copies a Jest/Vitest regression test that catches accidental `new Date("YYYY-MM-DD")` parsing.
+- Includes explicit privacy copy and AI disclosure on the public page.
 - Runs fully locally: no backend, no analytics, no dependencies.
 
 ## Support

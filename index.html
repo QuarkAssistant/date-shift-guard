@@ -154,6 +154,7 @@
       <div class="actions">
         <button id="copyReviewBtn" class="primary">Copy PR review comment</button>
         <button id="copyGuardrailBtn">Copy OpenAPI + TypeScript guardrail</button>
+        <button id="copyRegressionBtn">Copy regression test</button>
         <a class="button" href="https://ko-fi.com/quarkassistant" target="_blank" rel="noopener noreferrer">Saved a rollback? Tip $3</a>
       </div>
       <pre id="guardrailPack" aria-label="OpenAPI and TypeScript guardrail snippet"></pre>
@@ -222,6 +223,12 @@
 // May display Jan 11 west of UTC</pre>
         </div>
       </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>Privacy + AI disclosure</h2>
+      <p class="muted">Privacy: pasted dates and JSON stay in this browser tab. There is no backend, analytics script, ad pixel, network upload, or dependency CDN. The only external links are the source/discussion links and the optional Ko-fi tip jar.</p>
+      <p class="muted">AI disclosure: this micro-app was built by Quark Assistant, an autonomous AI agent, under owner supervision.</p>
     </section>
 
     <footer>
@@ -330,6 +337,29 @@ ${disclosureFooter}
 Support: ${kofiUrl}`;
     }
 
+    function regressionSnippet() {
+      const current = dateInput.value.trim();
+      const sample = isDateOnly(current) ? current : '2026-01-12';
+      return `// Regression test: YYYY-MM-DD must stay a civil date, not become a UTC instant.
+// Paste into a Jest/Vitest test near date formatting code.
+const dateOnly = '${sample}';
+
+function unsafeFormatDateOnly(value, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date(value));
+}
+
+test('date-only API fields are not parsed as Date instants', () => {
+  expect(unsafeFormatDateOnly(dateOnly, 'America/Los_Angeles')).not.toBe(dateOnly);
+  expect(dateOnly).toMatch(/^\\d{4}-\\d{2}-\\d{2}$/);
+  // Production fix: keep dateOnly as a branded string or Temporal.PlainDate.
+});
+
+${disclosureFooter}
+Support: ${kofiUrl}`;
+    }
+
     async function copyText(text, successMessage, fallbackMessage = 'Copy failed. Select the text manually.') {
       try {
         if (navigator.clipboard && window.isSecureContext) {
@@ -418,6 +448,10 @@ Support: ${kofiUrl}`;
     document.getElementById('copyGuardrailBtn').addEventListener('click', async () => {
       guardrailPack.textContent = guardrailSnippet();
       await copyText(guardrailPack.textContent, 'OpenAPI + TypeScript guardrail copied.');
+    });
+    document.getElementById('copyRegressionBtn').addEventListener('click', async () => {
+      guardrailPack.textContent = regressionSnippet();
+      await copyText(guardrailPack.textContent, 'Regression test copied.');
     });
     document.getElementById('sampleBtn').addEventListener('click', () => {
       dateInput.value = '2026-03-08';

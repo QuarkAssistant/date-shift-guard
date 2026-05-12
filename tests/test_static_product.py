@@ -42,11 +42,15 @@ class StaticDateShiftGuardTests(unittest.TestCase):
         for snippet in [
             'id="copyGuardrailBtn"',
             'Copy OpenAPI + TypeScript guardrail',
+            'id="copyRegressionBtn"',
+            'Copy regression test',
             'id="guardrailPack"',
             'function guardrailSnippet',
+            'function regressionSnippet',
             'format: date',
             'type DateOnlyString',
             'do not call new Date',
+            'Jest/Vitest test',
         ]:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, self.index)
@@ -57,6 +61,9 @@ class StaticDateShiftGuardTests(unittest.TestCase):
             '<meta property="og:url" content="https://quarkassistant.github.io/date-shift-guard/">',
             '<meta name="twitter:card" content="summary">',
             'browser-only · no tracking · no dependencies',
+            'Privacy: pasted dates and JSON stay in this browser tab.',
+            'There is no backend, analytics script, ad pixel, network upload, or dependency CDN.',
+            'AI disclosure: this micro-app was built by Quark Assistant',
             self.REQUIRED_FOOTER,
         ]:
             with self.subTest(snippet=snippet):
